@@ -47,7 +47,7 @@ public class OpenAiServiceFactory {
   private OpenAiService createService(String apiKey) {
     ObjectMapper mapper = defaultObjectMapper();
     OkHttpClient client = client(apiKey);
-    Retrofit retrofit = defaultRetrofit(client, mapper);
+    Retrofit retrofit = defaultRetrofit(client, mapper, "https://api.openai.com/v1/");
     OpenAiApi api = retrofit.create(OpenAiApi.class);
     return new OpenAiService(api);
   }

@@ -134,8 +134,11 @@
 
       let relatedFilesData;
       let botMessage;
-      let eventSource = new EventSource(
-          this.settings.serverUrl + '?question=' + encodeURIComponent(question));
+      let url = this.settings.serverUrl + '?question=' + encodeURIComponent(question);
+      if (QABot.threadId) {
+        url += '&threadId=' + encodeURIComponent(QABot.threadId);
+      }
+      let eventSource = new EventSource(url);
 
       eventSource.onmessage = function (event) {
         if (!botMessage) {
@@ -150,13 +153,13 @@
         }
 
         let data = JSON.parse(event.data);
-        if (!relatedFilesData && data.relatedFiles && data.relatedFiles.length > 0) {
-          relatedFilesData = data.relatedFiles;
-        }
         // Append answer to botMessage
         if (data.answer) {
           // end of stream response
           if (data.answer === '$END$') {
+            if (data.threadId) {
+              QABot.threadId = data.threadId;
+            }
             finish();
           } else {
             botMessage.innerText += data.answer;
