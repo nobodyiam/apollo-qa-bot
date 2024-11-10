@@ -1,8 +1,12 @@
 package com.apolloconfig.apollo.ai.qabot.entity;
 
-public record Answer(String answer, String threadId) {
+import java.util.Collections;
+import java.util.Set;
 
-  public static final Answer EMPTY = new Answer("", "");
+public record Answer(String answer, String threadId, Set<String> relatedFiles) {
+
+  public static final Answer EMPTY = new Answer("", "", Collections.emptySet());
   public static final Answer ERROR = new Answer(
-      "Sorry, I can't answer your question right now. Please try again later.", "");
+      "Sorry, I can't answer your question right now. Please try again later.", "",
+      Collections.emptySet());
 }

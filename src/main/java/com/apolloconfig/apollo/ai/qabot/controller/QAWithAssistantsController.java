@@ -2,14 +2,22 @@ package com.apolloconfig.apollo.ai.qabot.controller;
 
 import com.apolloconfig.apollo.ai.qabot.entity.Answer;
 import com.apolloconfig.apollo.ai.qabot.openai.OpenAiAssistantsService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Function;
 import com.google.common.base.Strings;
 import com.theokanning.openai.assistants.StreamEvent;
+import com.theokanning.openai.assistants.message.Message;
 import com.theokanning.openai.assistants.message.content.Annotation;
 import com.theokanning.openai.assistants.message.content.MessageDelta;
 import com.theokanning.openai.assistants.message.content.Text;
 import com.theokanning.openai.service.assistant_stream.AssistantSSE;
 import io.reactivex.Flowable;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -67,24 +75,60 @@ public class QAWithAssistantsController {
     Flowable<AssistantSSE> result = aiService.getAssistantMessage(threadId, question);
 
     Flux<Answer> flux = Flux.from(result.filter(
-            assistantSSE -> assistantSSE.getEvent() == StreamEvent.THREAD_MESSAGE_DELTA)
+            assistantSSE -> assistantSSE.getEvent() == StreamEvent.THREAD_MESSAGE_DELTA
+                || assistantSSE.getEvent() == StreamEvent.THREAD_MESSAGE_COMPLETED)
         .map(assistantSSE -> {
           if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("event: {}, data: {}", assistantSSE.getEvent(),
                 assistantSSE.getData());
           }
-          MessageDelta message = objectMapper.readValue(assistantSSE.getData(),
-              MessageDelta.class);
-          Text text = message.getDelta().getContent().get(0).getText();
-          String value = text.getValue();
-          if (!CollectionUtils.isEmpty(text.getAnnotations())) {
-            for (Annotation annotation : text.getAnnotations()) {
-              value = value.replace(annotation.getText(), "");
-            }
-          }
-          return new Answer(value, "");
-        }));
 
-    return flux.concatWith(Flux.just(new Answer(END_SYMBOL, threadId)));
+          // fetch the related files
+          if (assistantSSE.getEvent() == StreamEvent.THREAD_MESSAGE_COMPLETED) {
+            return getAnswerFromMessage(assistantSSE);
+          }
+
+          return getAnswerFromMessageDelta(assistantSSE);
+        })).onErrorReturn(Answer.ERROR);
+
+    return flux.concatWith(Flux.just(new Answer(END_SYMBOL, threadId, Collections.emptySet())));
+  }
+
+  private @NotNull Answer getAnswerFromMessage(AssistantSSE assistantSSE)
+      throws JsonProcessingException {
+    Message message = objectMapper.readValue(assistantSSE.getData(), Message.class);
+    List<Annotation> annotations = message.getContent().get(0).getText().getAnnotations();
+    if (CollectionUtils.isEmpty(annotations)) {
+      return Answer.EMPTY;
+    }
+    Set<String> relatedFiles = annotations.stream()
+        .filter(annotation -> annotation.getType().equals("file_citation")).map(
+            (Function<Annotation, String>) input -> {
+              try {
+                String fileName = aiService.getFileName(input.getFileCitation().getFileId());
+                if (fileName.endsWith(".md")) {
+                  fileName = fileName.substring(0, fileName.length() - 3);
+                }
+                return fileName;
+
+              } catch (Throwable ex) {
+                LOGGER.error("Error while fetching file name", ex);
+                return "";
+              }
+            }).collect(Collectors.toSet());
+    return new Answer("", "", relatedFiles);
+  }
+
+  private @NotNull Answer getAnswerFromMessageDelta(AssistantSSE assistantSSE)
+      throws JsonProcessingException {
+    MessageDelta message = objectMapper.readValue(assistantSSE.getData(), MessageDelta.class);
+    Text text = message.getDelta().getContent().get(0).getText();
+    String value = text.getValue();
+    if (!CollectionUtils.isEmpty(text.getAnnotations())) {
+      for (Annotation annotation : text.getAnnotations()) {
+        value = value.replace(annotation.getText(), "");
+      }
+    }
+    return new Answer(value, "", Collections.emptySet());
   }
 }

@@ -29,3 +29,25 @@ assistant:
     Only output the answer to the question, with nothing else.
   # the vector store id
   vector-store-id: xxxxxxxxxx
+
+markdown:
+  files:
+    # the markdown files location, e.g. for apollo, it's the folder of https://github.com/apolloconfig/apollo/tree/master/docs
+    location: xxxxxxxxxx
+    # the markdown files roots in the documentation site, e.g. for apollo, it's /zh and /en
+    # https://github.com/apolloconfig/apollo/blob/master/docs/zh/design/apollo-design.md => https://www.apolloconfig.com/#/zh/design/apollo-design
+    # https://github.com/apolloconfig/apollo/blob/master/docs/en/design/apollo-design.md => https://www.apolloconfig.com/#/en/design/apollo-design
+    roots:
+      - /zh
+      - /en
+    # whether to enable the markdown files auto update
+    scheduleEnabled: false
+    # the cron expression for the markdown files auto update
+    scheduleCron: 0 0 * * * ? # every hour
+  processor:
+    # the retry configuration when accessing openai failed
+    retry:
+      delay: 10000
+      multiplier: 1.5
+      maxDelay: 120000
+      maxElapsedTime: 600000

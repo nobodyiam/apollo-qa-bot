@@ -153,6 +153,9 @@
         }
 
         let data = JSON.parse(event.data);
+        if (!relatedFilesData && data.relatedFiles && data.relatedFiles.length > 0) {
+          relatedFilesData = data.relatedFiles;
+        }
         // Append answer to botMessage
         if (data.answer) {
           // end of stream response
