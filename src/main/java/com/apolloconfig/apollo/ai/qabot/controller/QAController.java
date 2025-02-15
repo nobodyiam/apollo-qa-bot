@@ -1,16 +1,17 @@
 package com.apolloconfig.apollo.ai.qabot.controller;
 
-import com.apolloconfig.apollo.ai.qabot.api.AiService;
 import com.apolloconfig.apollo.ai.qabot.api.VectorDBService;
+import com.apolloconfig.apollo.ai.qabot.deepseek.DeepSeekAiService;
 import com.apolloconfig.apollo.ai.qabot.markdown.MarkdownSearchResult;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
-import com.theokanning.openai.completion.chat.ChatCompletionChunk;
 import com.theokanning.openai.embedding.Embedding;
+import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionChunk;
 import io.reactivex.Flowable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -32,7 +33,7 @@ public class QAController {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(QAController.class);
 
-  private final AiService aiService;
+  private final DeepSeekAiService aiService;
   private final VectorDBService vectorDBService;
 
   @Value("${qa.prompt}")
@@ -41,7 +42,7 @@ public class QAController {
   @Value("${qa.topK}")
   private int topK;
 
-  public QAController(AiService aiService, VectorDBService vectorDBService) {
+  public QAController(DeepSeekAiService aiService, VectorDBService vectorDBService) {
     this.aiService = aiService;
     this.vectorDBService = vectorDBService;
   }
@@ -114,17 +115,31 @@ public class QAController {
     }
 
     final AtomicInteger counter = new AtomicInteger();
-    Flux<Answer> flux = Flux.from(result.filter(
-        chatCompletionChunk -> chatCompletionChunk.getChoices().get(0).getMessage().getContent()
-            != null).map(chatCompletionChunk -> {
-      String value = chatCompletionChunk.getChoices().get(0).getMessage().getContent();
-      if (LOGGER.isDebugEnabled()) {
-        System.out.print(value);
-      }
+    final AtomicBoolean reasonStarted = new AtomicBoolean(false);
+    Flux<Answer> flux = Flux.from(
+        result.filter(chatCompletionChunk -> !chatCompletionChunk.getChoices().isEmpty()).map(
+            chatCompletionChunk -> {
+              String value = null;
+              if (!Strings.isNullOrEmpty(
+                  chatCompletionChunk.getChoices().get(0).getMessage().getReasoningContent())) {
+                value = chatCompletionChunk.getChoices().get(0).getMessage().getReasoningContent();
+                if (reasonStarted.compareAndSet(false, true)) {
+                  value = "<Think>" + value;
+                }
+              } else {
+                value = (String) chatCompletionChunk.getChoices().get(0).getMessage().getContent();
+                if (reasonStarted.compareAndSet(true, false)) {
+                  value = "</Think>" + value;
+                }
+              }
+              if (LOGGER.isDebugEnabled()) {
+                System.out.print(value);
+              }
 
-      return counter.incrementAndGet() == 1 ? new Answer(value, relatedFiles)
-          : new Answer(value, Collections.emptySet());
-    }));
+              return counter.incrementAndGet() == 1 ? new Answer(value, relatedFiles)
+                  : new Answer(value, Collections.emptySet());
+
+            }));
 
     return flux.concatWith(Flux.just(Answer.END));
   }

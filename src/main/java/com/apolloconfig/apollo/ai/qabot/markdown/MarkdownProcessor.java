@@ -1,9 +1,9 @@
 package com.apolloconfig.apollo.ai.qabot.markdown;
 
-import com.apolloconfig.apollo.ai.qabot.api.AiService;
 import com.apolloconfig.apollo.ai.qabot.api.VectorDBService;
 import com.apolloconfig.apollo.ai.qabot.config.MarkdownFilesConfig;
 import com.apolloconfig.apollo.ai.qabot.config.MarkdownProcessorRetryConfig;
+import com.apolloconfig.apollo.ai.qabot.deepseek.DeepSeekAiService;
 import com.theokanning.openai.embedding.Embedding;
 import com.vladsch.flexmark.ast.Heading;
 import com.vladsch.flexmark.parser.Parser;
@@ -34,12 +34,12 @@ public class MarkdownProcessor {
 
   private final MarkdownFilesConfig markdownFilesConfig;
   private final MarkdownProcessorRetryConfig markdownProcessorRetryConfig;
-  private final AiService aiService;
+  private final DeepSeekAiService aiService;
   private final VectorDBService vectorDBService;
   private final BackOff backOff;
 
   public MarkdownProcessor(MarkdownFilesConfig markdownFilesConfig,
-      MarkdownProcessorRetryConfig markdownProcessorRetryConfig, AiService aiService,
+      MarkdownProcessorRetryConfig markdownProcessorRetryConfig, DeepSeekAiService aiService,
       VectorDBService vectorDBService) {
     this.markdownFilesConfig = markdownFilesConfig;
     this.markdownProcessorRetryConfig = markdownProcessorRetryConfig;
